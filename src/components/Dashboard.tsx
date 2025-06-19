@@ -4,22 +4,24 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Users, Calendar, DollarSign, FileSpreadsheet } from 'lucide-react';
-import type { User } from '@/pages/Index';
+import { LogOut, Users, Calendar, DollarSign, FileSpreadsheet, User } from 'lucide-react';
+import type { User as UserType } from '@/pages/Index';
 import EmployeeManagement from './EmployeeManagement';
 import AttendanceManagement from './AttendanceManagement';
 import WageManagement from './WageManagement';
 import ReportsAndExports from './ReportsAndExports';
+import Profile from './Profile';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
 
 interface DashboardProps {
-  user: User;
+  user: UserType;
   onLogout: () => void;
 }
 
 const Dashboard = ({ user, onLogout }: DashboardProps) => {
   const [activeTab, setActiveTab] = useState('employees');
+  const [currentUser, setCurrentUser] = useState<UserType>(user);
   const { employees } = useEmployeeStore();
   const { attendanceRecords } = useAttendanceStore();
 
@@ -27,9 +29,13 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
     record => record.date === new Date().toISOString().split('T')[0]
   );
 
-  const userEmployees = user.role === 'admin' 
+  const userEmployees = currentUser.role === 'admin' 
     ? employees 
-    : employees.filter(emp => emp.siteLocation === user.siteLocation);
+    : employees.filter(emp => emp.siteLocation === currentUser.siteLocation);
+
+  const handleUpdateUser = (updatedUser: UserType) => {
+    setCurrentUser(updatedUser);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50">
@@ -42,17 +48,17 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Construction Manager</h1>
-                <p className="text-sm text-gray-600">Welcome back, {user.name}</p>
+                <p className="text-sm text-gray-600">Welcome back, {currentUser.name}</p>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
-              <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="px-3 py-1">
-                {user.role === 'admin' ? 'Admin' : 'Supervisor'}
+              <Badge variant={currentUser.role === 'admin' ? 'default' : 'secondary'} className="px-3 py-1">
+                {currentUser.role === 'admin' ? 'Admin' : 'Supervisor'}
               </Badge>
-              {user.siteLocation && (
+              {currentUser.siteLocation && (
                 <Badge variant="outline" className="px-3 py-1">
-                  {user.siteLocation}
+                  {currentUser.siteLocation}
                 </Badge>
               )}
               <Button 
@@ -80,7 +86,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
             <CardContent>
               <div className="text-2xl font-bold text-gray-900">{userEmployees.length}</div>
               <p className="text-xs text-gray-500">
-                {user.role === 'admin' ? 'All sites' : user.siteLocation}
+                {currentUser.role === 'admin' ? 'All sites' : currentUser.siteLocation}
               </p>
             </CardContent>
           </Card>
@@ -105,13 +111,13 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-gray-900">
-                {user.role === 'admin' 
+                {currentUser.role === 'admin' 
                   ? new Set(employees.map(emp => emp.siteLocation)).size 
                   : 1
                 }
               </div>
               <p className="text-xs text-gray-500">
-                {user.role === 'admin' ? 'All locations' : 'Your location'}
+                {currentUser.role === 'admin' ? 'All locations' : 'Your location'}
               </p>
             </CardContent>
           </Card>
@@ -120,7 +126,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
         {/* Main Content Tabs */}
         <Card className="bg-white/80 backdrop-blur border-0 shadow-lg">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 bg-gray-100/50">
+            <TabsList className="grid w-full grid-cols-5 bg-gray-100/50">
               <TabsTrigger value="employees" className="flex items-center gap-2">
                 <Users className="w-4 h-4" />
                 Employees
@@ -137,22 +143,30 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                 <FileSpreadsheet className="w-4 h-4" />
                 Reports
               </TabsTrigger>
+              <TabsTrigger value="profile" className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Profile
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="employees" className="space-y-4">
-              <EmployeeManagement user={user} />
+              <EmployeeManagement user={currentUser} />
             </TabsContent>
 
             <TabsContent value="attendance" className="space-y-4">
-              <AttendanceManagement user={user} />
+              <AttendanceManagement user={currentUser} />
             </TabsContent>
 
             <TabsContent value="wages" className="space-y-4">
-              <WageManagement user={user} />
+              <WageManagement user={currentUser} />
             </TabsContent>
 
             <TabsContent value="reports" className="space-y-4">
-              <ReportsAndExports user={user} />
+              <ReportsAndExports user={currentUser} />
+            </TabsContent>
+
+            <TabsContent value="profile" className="space-y-4">
+              <Profile user={currentUser} onUpdateUser={handleUpdateUser} />
             </TabsContent>
           </Tabs>
         </Card>

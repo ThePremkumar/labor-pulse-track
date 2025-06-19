@@ -4,31 +4,70 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Users } from 'lucide-react';
+import { Building2, Mail, Lock } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import type { User, UserRole } from '@/pages/Index';
 
 interface LoginFormProps {
   onLogin: (user: User) => void;
 }
 
-const LoginForm = ({ onLogin }: LoginFormProps) => {
-  const [name, setName] = useState('');
-  const [role, setRole] = useState<UserRole>('supervisor');
-  const [siteLocation, setSiteLocation] = useState('');
+// Mock user database for demo purposes
+const mockUsers = [
+  {
+    id: 'admin_1',
+    name: 'John Admin',
+    email: 'admin@company.com',
+    password: 'admin123',
+    role: 'admin' as UserRole,
+  },
+  {
+    id: 'supervisor_1',
+    name: 'Jane Supervisor',
+    email: 'supervisor@company.com',
+    password: 'super123',
+    role: 'supervisor' as UserRole,
+    siteLocation: 'Downtown Site',
+  },
+];
 
-  const handleSubmit = (e: React.FormEvent) => {
+const LoginForm = ({ onLogin }: LoginFormProps) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!email.trim() || !password.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter both email and password.",
+        variant: "destructive",
+      });
+      return;
+    }
     
-    const user: User = {
-      id: `${role}_${Date.now()}`,
-      name: name.trim(),
-      role,
-      siteLocation: role === 'supervisor' ? siteLocation : undefined,
-    };
+    setIsLoading(true);
     
-    onLogin(user);
+    // Simulate API call delay
+    setTimeout(() => {
+      const user = mockUsers.find(
+        u => u.email === email && u.password === password
+      );
+      
+      if (user) {
+        const { password: _, ...userWithoutPassword } = user;
+        onLogin(userWithoutPassword);
+      } else {
+        toast({
+          title: "Login Failed",
+          description: "Invalid email or password.",
+          variant: "destructive",
+        });
+      }
+      setIsLoading(false);
+    }, 1000);
   };
 
   return (
@@ -49,69 +88,55 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium text-gray-700">
-                Full Name
+              <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                Email Address
               </Label>
-              <Input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter your full name"
-                required
-                className="h-11"
-              />
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  required
+                  className="h-11 pl-10"
+                />
+              </div>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="role" className="text-sm font-medium text-gray-700">
-                Role
+              <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                Password
               </Label>
-              <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
-                <SelectTrigger className="h-11">
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4" />
-                      Admin
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="supervisor">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4" />
-                      Supervisor
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {role === 'supervisor' && (
-              <div className="space-y-2">
-                <Label htmlFor="siteLocation" className="text-sm font-medium text-gray-700">
-                  Site Location
-                </Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
-                  id="siteLocation"
-                  type="text"
-                  value={siteLocation}
-                  onChange={(e) => setSiteLocation(e.target.value)}
-                  placeholder="Enter site location"
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
                   required
-                  className="h-11"
+                  className="h-11 pl-10"
                 />
               </div>
-            )}
+            </div>
             
             <Button 
               type="submit" 
+              disabled={isLoading}
               className="w-full h-11 bg-gradient-to-r from-blue-600 to-orange-500 hover:from-blue-700 hover:to-orange-600 text-white font-medium transition-all duration-200"
             >
-              Sign In
+              {isLoading ? 'Signing In...' : 'Sign In'}
             </Button>
           </form>
+          
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-600">
+            <p className="font-medium mb-2">Demo Credentials:</p>
+            <p><strong>Admin:</strong> admin@company.com / admin123</p>
+            <p><strong>Supervisor:</strong> supervisor@company.com / super123</p>
+          </div>
         </CardContent>
       </Card>
     </div>
