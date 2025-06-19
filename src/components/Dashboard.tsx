@@ -5,35 +5,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { LogOut, Users, Calendar, DollarSign, FileSpreadsheet, User } from 'lucide-react';
-import type { User as UserType } from '@/pages/Index';
+import type { UserProfile } from '@/pages/Index';
 import EmployeeManagement from './EmployeeManagement';
 import AttendanceManagement from './AttendanceManagement';
 import WageManagement from './WageManagement';
 import ReportsAndExports from './ReportsAndExports';
 import Profile from './Profile';
-import { useEmployeeStore } from '@/store/employeeStore';
-import { useAttendanceStore } from '@/store/attendanceStore';
 
 interface DashboardProps {
-  user: UserType;
+  user: UserProfile;
   onLogout: () => void;
 }
 
 const Dashboard = ({ user, onLogout }: DashboardProps) => {
   const [activeTab, setActiveTab] = useState('employees');
-  const [currentUser, setCurrentUser] = useState<UserType>(user);
-  const { employees } = useEmployeeStore();
-  const { attendanceRecords } = useAttendanceStore();
+  const [currentUser, setCurrentUser] = useState<UserProfile>(user);
 
-  const todayAttendance = attendanceRecords.filter(
-    record => record.date === new Date().toISOString().split('T')[0]
-  );
-
-  const userEmployees = currentUser.role === 'admin' 
-    ? employees 
-    : employees.filter(emp => emp.siteLocation === currentUser.siteLocation);
-
-  const handleUpdateUser = (updatedUser: UserType) => {
+  const handleUpdateUser = (updatedUser: UserProfile) => {
     setCurrentUser(updatedUser);
   };
 
@@ -56,9 +44,9 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
               <Badge variant={currentUser.role === 'admin' ? 'default' : 'secondary'} className="px-3 py-1">
                 {currentUser.role === 'admin' ? 'Admin' : 'Supervisor'}
               </Badge>
-              {currentUser.siteLocation && (
+              {currentUser.site_location && (
                 <Badge variant="outline" className="px-3 py-1">
-                  {currentUser.siteLocation}
+                  {currentUser.site_location}
                 </Badge>
               )}
               <Button 
@@ -76,53 +64,6 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="bg-white/80 backdrop-blur border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Employees</CardTitle>
-              <Users className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{userEmployees.length}</div>
-              <p className="text-xs text-gray-500">
-                {currentUser.role === 'admin' ? 'All sites' : currentUser.siteLocation}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Today's Attendance</CardTitle>
-              <Calendar className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{todayAttendance.length}</div>
-              <p className="text-xs text-gray-500">
-                Marked today
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Active Sites</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-900">
-                {currentUser.role === 'admin' 
-                  ? new Set(employees.map(emp => emp.siteLocation)).size 
-                  : 1
-                }
-              </div>
-              <p className="text-xs text-gray-500">
-                {currentUser.role === 'admin' ? 'All locations' : 'Your location'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Main Content Tabs */}
         <Card className="bg-white/80 backdrop-blur border-0 shadow-lg">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

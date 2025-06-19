@@ -4,36 +4,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Building2, Mail, Lock } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Building2, Mail, Lock, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { User, UserRole } from '@/pages/Index';
+import { supabase } from '@/integrations/supabase/client';
 
-interface LoginFormProps {
-  onLogin: (user: User) => void;
-}
-
-// Mock user database for demo purposes
-const mockUsers = [
-  {
-    id: 'admin_1',
-    name: 'John Admin',
-    email: 'admin@company.com',
-    password: 'admin123',
-    role: 'admin' as UserRole,
-  },
-  {
-    id: 'supervisor_1',
-    name: 'Jane Supervisor',
-    email: 'supervisor@company.com',
-    password: 'super123',
-    role: 'supervisor' as UserRole,
-    siteLocation: 'Downtown Site',
-  },
-];
-
-const LoginForm = ({ onLogin }: LoginFormProps) => {
+const LoginForm = () => {
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [role, setRole] = useState<'admin' | 'supervisor'>('supervisor');
+  const [siteLocation, setSiteLocation] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -47,27 +29,73 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
       });
       return;
     }
+
+    if (!isLogin && (!name.trim() || (role === 'supervisor' && !siteLocation.trim()))) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsLoading(true);
     
-    // Simulate API call delay
-    setTimeout(() => {
-      const user = mockUsers.find(
-        u => u.email === email && u.password === password
-      );
-      
-      if (user) {
-        const { password: _, ...userWithoutPassword } = user;
-        onLogin(userWithoutPassword);
-      } else {
-        toast({
-          title: "Login Failed",
-          description: "Invalid email or password.",
-          variant: "destructive",
+    try {
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
         });
+        
+        if (error) {
+          toast({
+            title: "Login Failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Login Successful",
+            description: "Welcome back!",
+          });
+        }
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`,
+            data: {
+              name,
+              role,
+              site_location: role === 'supervisor' ? siteLocation : null,
+            }
+          }
+        });
+        
+        if (error) {
+          toast({
+            title: "Sign Up Failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Account Created",
+            description: "Please check your email to verify your account.",
+          });
+        }
       }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -87,6 +115,26 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
         
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-sm font-medium text-gray-700">
+                  Full Name
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    id="name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter your full name"
+                    required={!isLogin}
+                    className="h-11 pl-10"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium text-gray-700">
                 Email Address
@@ -122,20 +170,60 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
                 />
               </div>
             </div>
+
+            {!isLogin && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="role" className="text-sm font-medium text-gray-700">
+                    Role
+                  </Label>
+                  <Select value={role} onValueChange={(value: 'admin' | 'supervisor') => setRole(value)}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrator</SelectItem>
+                      <SelectItem value="supervisor">Supervisor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {role === 'supervisor' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="siteLocation" className="text-sm font-medium text-gray-700">
+                      Site Location
+                    </Label>
+                    <Input
+                      id="siteLocation"
+                      type="text"
+                      value={siteLocation}
+                      onChange={(e) => setSiteLocation(e.target.value)}
+                      placeholder="Enter site location"
+                      required
+                      className="h-11"
+                    />
+                  </div>
+                )}
+              </>
+            )}
             
             <Button 
               type="submit" 
               disabled={isLoading}
               className="w-full h-11 bg-gradient-to-r from-blue-600 to-orange-500 hover:from-blue-700 hover:to-orange-600 text-white font-medium transition-all duration-200"
             >
-              {isLoading ? 'Signing In...' : 'Sign In'}
+              {isLoading ? (isLogin ? 'Signing In...' : 'Creating Account...') : (isLogin ? 'Sign In' : 'Create Account')}
             </Button>
           </form>
           
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-600">
-            <p className="font-medium mb-2">Demo Credentials:</p>
-            <p><strong>Admin:</strong> admin@company.com / admin123</p>
-            <p><strong>Supervisor:</strong> supervisor@company.com / super123</p>
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-sm text-blue-600 hover:text-blue-700 underline"
+            >
+              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+            </button>
           </div>
         </CardContent>
       </Card>

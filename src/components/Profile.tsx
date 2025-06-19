@@ -8,25 +8,58 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { User, Mail, MapPin, Briefcase, Edit2, Save, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { User as UserType } from '@/pages/Index';
+import { supabase } from '@/integrations/supabase/client';
+import type { UserProfile } from '@/pages/Index';
 
 interface ProfileProps {
-  user: UserType;
-  onUpdateUser: (updatedUser: UserType) => void;
+  user: UserProfile;
+  onUpdateUser: (updatedUser: UserProfile) => void;
 }
 
 const Profile = ({ user, onUpdateUser }: ProfileProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedUser, setEditedUser] = useState(user);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleSave = () => {
-    onUpdateUser(editedUser);
-    setIsEditing(false);
-    toast({
-      title: "Profile Updated",
-      description: "Your profile has been successfully updated.",
-    });
+  const handleSave = async () => {
+    setIsLoading(true);
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          name: editedUser.name,
+          email: editedUser.email,
+          site_location: editedUser.site_location,
+        })
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to update profile. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        onUpdateUser(data);
+        setIsEditing(false);
+        toast({
+          title: "Profile Updated",
+          description: "Your profile has been successfully updated.",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -54,11 +87,11 @@ const Profile = ({ user, onUpdateUser }: ProfileProps) => {
           </Button>
         ) : (
           <div className="flex gap-2">
-            <Button onClick={handleSave} size="sm">
+            <Button onClick={handleSave} size="sm" disabled={isLoading}>
               <Save className="w-4 h-4 mr-2" />
-              Save
+              {isLoading ? 'Saving...' : 'Save'}
             </Button>
-            <Button onClick={handleCancel} variant="outline" size="sm">
+            <Button onClick={handleCancel} variant="outline" size="sm" disabled={isLoading}>
               <X className="w-4 h-4 mr-2" />
               Cancel
             </Button>
@@ -80,9 +113,9 @@ const Profile = ({ user, onUpdateUser }: ProfileProps) => {
                 <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
                   {user.role === 'admin' ? 'Administrator' : 'Supervisor'}
                 </Badge>
-                {user.siteLocation && (
+                {user.site_location && (
                   <Badge variant="outline">
-                    {user.siteLocation}
+                    {user.site_location}
                   </Badge>
                 )}
               </div>
@@ -146,14 +179,14 @@ const Profile = ({ user, onUpdateUser }: ProfileProps) => {
                 {isEditing ? (
                   <Input
                     id="siteLocation"
-                    value={editedUser.siteLocation || ''}
-                    onChange={(e) => setEditedUser({ ...editedUser, siteLocation: e.target.value })}
+                    value={editedUser.site_location || ''}
+                    onChange={(e) => setEditedUser({ ...editedUser, site_location: e.target.value })}
                     className="h-10"
                     placeholder="Enter site location"
                   />
                 ) : (
                   <p className="text-gray-900 p-2 bg-gray-50 rounded-md">
-                    {user.siteLocation || 'Not specified'}
+                    {user.site_location || 'Not specified'}
                   </p>
                 )}
               </div>

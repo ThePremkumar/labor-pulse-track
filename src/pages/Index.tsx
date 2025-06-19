@@ -1,73 +1,122 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
 import LoginForm from '@/components/LoginForm';
 import Dashboard from '@/components/Dashboard';
 
 export type UserRole = 'admin' | 'supervisor';
 
-export interface User {
+export interface UserProfile {
   id: string;
   name: string;
   email: string;
   role: UserRole;
-  siteLocation?: string;
+  site_location?: string;
 }
 
 export interface Employee {
   id: string;
   name: string;
-  employeeId: string;
-  jobCategory: string;
-  dailyWage: number;
-  siteLocation: string;
-  addedBy: string;
-  createdAt: string;
+  employee_id: string;
+  job_category: string;
+  daily_wage: number;
+  site_location: string;
+  added_by: string;
+  created_at: string;
 }
 
 export interface AttendanceRecord {
   id: string;
-  employeeId: string;
+  employee_id: string;
   date: string;
-  attendanceType: 'full' | 'half' | '1.5';
-  markedBy: string;
-  createdAt: string;
+  attendance_type: 'full' | 'half' | '1.5';
+  marked_by: string;
+  created_at: string;
 }
 
 export interface WagePayment {
   id: string;
-  employeeId: string;
-  advanceAmount: number;
+  employee_id: string;
+  advance_amount: number;
   date: string;
-  paidBy: string;
+  paid_by: string;
 }
 
 const Index = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    toast({
-      title: "Login Successful",
-      description: `Welcome back, ${user.name}!`,
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Fetch user profile
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (profile) {
+            setUserProfile(profile);
+          }
+        } else {
+          setUserProfile(null);
+        }
+        
+        setLoading(false);
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to logout. Please try again.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+    }
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    });
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50 flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50">
-      {!currentUser ? (
-        <LoginForm onLogin={handleLogin} />
+      {!user || !userProfile ? (
+        <LoginForm />
       ) : (
-        <Dashboard user={currentUser} onLogout={handleLogout} />
+        <Dashboard user={userProfile} onLogout={handleLogout} />
       )}
     </div>
   );
