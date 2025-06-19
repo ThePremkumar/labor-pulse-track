@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,13 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DollarSign, Calculator, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { User } from '@/pages/Index';
-import { useEmployeeStore } from '@/store/employeeStore';
-import { useAttendanceStore } from '@/store/attendanceStore';
-import { useWageStore } from '@/store/wageStore';
+import { supabase } from '@/integrations/supabase/client';
+import type { UserProfile, Employee, AttendanceRecord, WagePayment } from '@/pages/Index';
 
 interface WageManagementProps {
-  user: User;
+  user: UserProfile;
 }
 
 const WageManagement = ({ user }: WageManagementProps) => {
@@ -22,15 +20,60 @@ const WageManagement = ({ user }: WageManagementProps) => {
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [wagePayments, setWagePayments] = useState<WagePayment[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const { employees } = useEmployeeStore();
-  const { attendanceRecords } = useAttendanceStore();
-  const { wagePayments, addWagePayment } = useWageStore();
   const { toast } = useToast();
 
-  const userEmployees = user.role === 'admin' 
-    ? employees 
-    : employees.filter(emp => emp.siteLocation === user.siteLocation);
+  useEffect(() => {
+    fetchData();
+  }, [user]);
+
+  const fetchData = async () => {
+    try {
+      await Promise.all([
+        fetchEmployees(),
+        fetchAttendanceRecords(),
+        fetchWagePayments()
+      ]);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setLoading(false);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    let query = supabase.from('employees').select('*');
+    
+    if (user.role === 'supervisor' && user.site_location) {
+      query = query.eq('site_location', user.site_location);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    setEmployees(data || []);
+  };
+
+  const fetchAttendanceRecords = async () => {
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .select('*');
+    
+    if (error) throw error;
+    setAttendanceRecords(data || []);
+  };
+
+  const fetchWagePayments = async () => {
+    const { data, error } = await supabase
+      .from('wage_payments')
+      .select('*');
+    
+    if (error) throw error;
+    setWagePayments(data || []);
+  };
 
   const calculateWages = (employeeId: string, startDate: string, endDate: string) => {
     const employee = employees.find(emp => emp.id === employeeId);
@@ -38,7 +81,7 @@ const WageManagement = ({ user }: WageManagementProps) => {
 
     const employeeAttendance = attendanceRecords.filter(
       record => 
-        record.employeeId === employeeId &&
+        record.employee_id === employeeId &&
         record.date >= startDate &&
         record.date <= endDate
     );
@@ -46,19 +89,19 @@ const WageManagement = ({ user }: WageManagementProps) => {
     let totalWage = 0;
     const breakdown = employeeAttendance.map(record => {
       let dayWage = 0;
-      switch (record.attendanceType) {
+      switch (record.attendance_type) {
         case 'full':
-          dayWage = employee.dailyWage;
+          dayWage = employee.daily_wage;
           break;
         case 'half':
-          dayWage = employee.dailyWage * 0.5;
+          dayWage = employee.daily_wage * 0.5;
           break;
         case '1.5':
-          dayWage = employee.dailyWage * 1.5;
+          dayWage = employee.daily_wage * 1.5;
           break;
       }
       totalWage += dayWage;
-      return { date: record.date, type: record.attendanceType, wage: dayWage };
+      return { date: record.date, type: record.attendance_type, wage: dayWage };
     });
 
     return { totalWage, daysWorked: employeeAttendance.length, breakdown };
@@ -66,11 +109,11 @@ const WageManagement = ({ user }: WageManagementProps) => {
 
   const getEmployeeAdvances = (employeeId: string) => {
     return wagePayments
-      .filter(payment => payment.employeeId === employeeId)
-      .reduce((total, payment) => total + payment.advanceAmount, 0);
+      .filter(payment => payment.employee_id === employeeId)
+      .reduce((total, payment) => total + payment.advance_amount, 0);
   };
 
-  const handleAdvancePayment = () => {
+  const handleAdvancePayment = async () => {
     if (!selectedEmployee || !advanceAmount) {
       toast({
         title: "Error",
@@ -80,25 +123,39 @@ const WageManagement = ({ user }: WageManagementProps) => {
       return;
     }
 
-    addWagePayment({
-      employeeId: selectedEmployee,
-      advanceAmount: parseFloat(advanceAmount),
-      date: new Date().toISOString().split('T')[0],
-      paidBy: user.id,
-    });
+    try {
+      const { error } = await supabase
+        .from('wage_payments')
+        .insert({
+          employee_id: selectedEmployee,
+          advance_amount: parseFloat(advanceAmount),
+          date: new Date().toISOString().split('T')[0],
+          paid_by: user.id,
+        });
 
-    setSelectedEmployee('');
-    setAdvanceAmount('');
-    toast({
-      title: "Success",
-      description: "Advance payment recorded successfully!",
-    });
+      if (error) throw error;
+
+      await fetchWagePayments();
+      setSelectedEmployee('');
+      setAdvanceAmount('');
+      toast({
+        title: "Success",
+        description: "Advance payment recorded successfully!",
+      });
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to record payment. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getWageCalculations = () => {
     if (!startDate || !endDate) return [];
 
-    return userEmployees.map(employee => {
+    return employees.map(employee => {
       const wageData = calculateWages(employee.id, startDate, endDate);
       const advances = getEmployeeAdvances(employee.id);
       const remaining = wageData.totalWage - advances;
@@ -111,6 +168,10 @@ const WageManagement = ({ user }: WageManagementProps) => {
       };
     });
   };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -139,9 +200,9 @@ const WageManagement = ({ user }: WageManagementProps) => {
                   <SelectValue placeholder="Select employee" />
                 </SelectTrigger>
                 <SelectContent>
-                  {userEmployees.map((employee) => (
+                  {employees.map((employee) => (
                     <SelectItem key={employee.id} value={employee.id}>
-                      {employee.name} ({employee.employeeId})
+                      {employee.name} ({employee.employee_id})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -223,7 +284,7 @@ const WageManagement = ({ user }: WageManagementProps) => {
                       <TableCell>
                         <div>
                           <div className="font-medium">{employee.name}</div>
-                          <div className="text-sm text-gray-500">{employee.employeeId}</div>
+                          <div className="text-sm text-gray-500">{employee.employee_id}</div>
                         </div>
                       </TableCell>
                       <TableCell>

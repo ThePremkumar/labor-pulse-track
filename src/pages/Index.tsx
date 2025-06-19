@@ -16,6 +16,7 @@ export interface UserProfile {
   site_location?: string;
 }
 
+// Updated interfaces to match database schema
 export interface Employee {
   id: string;
   name: string;
@@ -67,7 +68,13 @@ const Index = () => {
             .single();
           
           if (profile) {
-            setUserProfile(profile);
+            setUserProfile({
+              id: profile.id,
+              name: profile.name,
+              email: profile.email,
+              role: profile.role as UserRole,
+              site_location: profile.site_location
+            });
           }
         } else {
           setUserProfile(null);

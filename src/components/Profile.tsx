@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { User, Mail, MapPin, Briefcase, Edit2, Save, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import type { UserProfile } from '@/pages/Index';
+import type { UserProfile, UserRole } from '@/pages/Index';
 
 interface ProfileProps {
   user: UserProfile;
@@ -44,7 +44,14 @@ const Profile = ({ user, onUpdateUser }: ProfileProps) => {
           variant: "destructive",
         });
       } else {
-        onUpdateUser(data);
+        const updatedProfile: UserProfile = {
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          role: data.role as UserRole,
+          site_location: data.site_location
+        };
+        onUpdateUser(updatedProfile);
         setIsEditing(false);
         toast({
           title: "Profile Updated",

@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,26 +7,64 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Calendar, Clock, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { User } from '@/pages/Index';
-import { useEmployeeStore } from '@/store/employeeStore';
-import { useAttendanceStore } from '@/store/attendanceStore';
+import { supabase } from '@/integrations/supabase/client';
+import type { UserProfile, Employee, AttendanceRecord } from '@/pages/Index';
 
 interface AttendanceManagementProps {
-  user: User;
+  user: UserProfile;
 }
 
 const AttendanceManagement = ({ user }: AttendanceManagementProps) => {
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [attendanceType, setAttendanceType] = useState<'full' | 'half' | '1.5'>('full');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const { employees } = useEmployeeStore();
-  const { attendanceRecords, addAttendance } = useAttendanceStore();
   const { toast } = useToast();
 
-  const userEmployees = user.role === 'admin' 
-    ? employees 
-    : employees.filter(emp => emp.siteLocation === user.siteLocation);
+  useEffect(() => {
+    fetchEmployees();
+    fetchAttendanceRecords();
+  }, [user]);
+
+  const fetchEmployees = async () => {
+    try {
+      let query = supabase.from('employees').select('*');
+      
+      if (user.role === 'supervisor' && user.site_location) {
+        query = query.eq('site_location', user.site_location);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      setEmployees(data || []);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch employees.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchAttendanceRecords = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setAttendanceRecords(data || []);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching attendance records:', error);
+      setLoading(false);
+    }
+  };
 
   const todayAttendance = attendanceRecords.filter(
     record => record.date === selectedDate
@@ -45,7 +83,7 @@ const AttendanceManagement = ({ user }: AttendanceManagementProps) => {
     }
   };
 
-  const handleMarkAttendance = () => {
+  const handleMarkAttendance = async () => {
     if (!selectedEmployee) {
       toast({
         title: "Error",
@@ -57,7 +95,7 @@ const AttendanceManagement = ({ user }: AttendanceManagementProps) => {
 
     // Check if attendance already marked for this employee today
     const existingAttendance = attendanceRecords.find(
-      record => record.employeeId === selectedEmployee && record.date === selectedDate
+      record => record.employee_id === selectedEmployee && record.date === selectedDate
     );
 
     if (existingAttendance) {
@@ -69,18 +107,32 @@ const AttendanceManagement = ({ user }: AttendanceManagementProps) => {
       return;
     }
 
-    addAttendance({
-      employeeId: selectedEmployee,
-      date: selectedDate,
-      attendanceType,
-      markedBy: user.id,
-    });
+    try {
+      const { error } = await supabase
+        .from('attendance_records')
+        .insert({
+          employee_id: selectedEmployee,
+          date: selectedDate,
+          attendance_type: attendanceType,
+          marked_by: user.id,
+        });
 
-    setSelectedEmployee('');
-    toast({
-      title: "Success",
-      description: "Attendance marked successfully!",
-    });
+      if (error) throw error;
+
+      await fetchAttendanceRecords();
+      setSelectedEmployee('');
+      toast({
+        title: "Success",
+        description: "Attendance marked successfully!",
+      });
+    } catch (error) {
+      console.error('Error marking attendance:', error);
+      toast({
+        title: "Error",
+        description: "Failed to mark attendance. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getEmployeeName = (employeeId: string) => {
@@ -88,8 +140,17 @@ const AttendanceManagement = ({ user }: AttendanceManagementProps) => {
   };
 
   const getEmployeeId = (employeeId: string) => {
-    return employees.find(emp => emp.id === employeeId)?.employeeId || 'Unknown';
+    return employees.find(emp => emp.id === employeeId)?.employee_id || 'Unknown';
   };
+
+  const getMarkedByName = (markedBy: string) => {
+    // For now, just return "System" - in a real app you'd fetch the user name
+    return 'System';
+  };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -128,9 +189,9 @@ const AttendanceManagement = ({ user }: AttendanceManagementProps) => {
                   <SelectValue placeholder="Select employee" />
                 </SelectTrigger>
                 <SelectContent>
-                  {userEmployees.map((employee) => (
+                  {employees.map((employee) => (
                     <SelectItem key={employee.id} value={employee.id}>
-                      {employee.name} ({employee.employeeId})
+                      {employee.name} ({employee.employee_id})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -194,14 +255,14 @@ const AttendanceManagement = ({ user }: AttendanceManagementProps) => {
                 </TableHeader>
                 <TableBody>
                   {todayAttendance.map((record) => {
-                    const typeInfo = getAttendanceTypeInfo(record.attendanceType);
+                    const typeInfo = getAttendanceTypeInfo(record.attendance_type);
                     return (
                       <TableRow key={record.id}>
                         <TableCell className="font-medium">
-                          {getEmployeeName(record.employeeId)}
+                          {getEmployeeName(record.employee_id)}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{getEmployeeId(record.employeeId)}</Badge>
+                          <Badge variant="outline">{getEmployeeId(record.employee_id)}</Badge>
                         </TableCell>
                         <TableCell>
                           <Badge className={`${typeInfo.color} text-white`}>
@@ -213,7 +274,7 @@ const AttendanceManagement = ({ user }: AttendanceManagementProps) => {
                         </TableCell>
                         <TableCell>
                           <span className="text-sm text-gray-600">
-                            {employees.find(emp => emp.addedBy === record.markedBy)?.name || 'System'}
+                            {getMarkedByName(record.marked_by)}
                           </span>
                         </TableCell>
                       </TableRow>

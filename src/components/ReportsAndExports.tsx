@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,13 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileSpreadsheet, Download, Filter, TrendingUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { User } from '@/pages/Index';
-import { useEmployeeStore } from '@/store/employeeStore';
-import { useAttendanceStore } from '@/store/attendanceStore';
-import { useWageStore } from '@/store/wageStore';
+import { supabase } from '@/integrations/supabase/client';
+import type { UserProfile, Employee, AttendanceRecord, WagePayment } from '@/pages/Index';
 
 interface ReportsAndExportsProps {
-  user: User;
+  user: UserProfile;
 }
 
 const ReportsAndExports = ({ user }: ReportsAndExportsProps) => {
@@ -22,17 +20,51 @@ const ReportsAndExports = ({ user }: ReportsAndExportsProps) => {
   const [selectedSite, setSelectedSite] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const { employees } = useEmployeeStore();
-  const { attendanceRecords } = useAttendanceStore();
-  const { wagePayments } = useWageStore();
   const { toast } = useToast();
 
-  const userEmployees = user.role === 'admin' 
-    ? employees 
-    : employees.filter(emp => emp.siteLocation === user.siteLocation);
+  useEffect(() => {
+    fetchData();
+  }, [user]);
 
-  const sites = Array.from(new Set(employees.map(emp => emp.siteLocation)));
+  const fetchData = async () => {
+    try {
+      await Promise.all([
+        fetchEmployees(),
+        fetchAttendanceRecords()
+      ]);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setLoading(false);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    let query = supabase.from('employees').select('*');
+    
+    if (user.role === 'supervisor' && user.site_location) {
+      query = query.eq('site_location', user.site_location);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    setEmployees(data || []);
+  };
+
+  const fetchAttendanceRecords = async () => {
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .select('*');
+    
+    if (error) throw error;
+    setAttendanceRecords(data || []);
+  };
+
+  const sites = Array.from(new Set(employees.map(emp => emp.site_location)));
 
   const getFilteredData = () => {
     let filteredAttendance = attendanceRecords;
@@ -47,24 +79,24 @@ const ReportsAndExports = ({ user }: ReportsAndExportsProps) => {
     // Filter by employee
     if (filterType === 'employee' && selectedEmployee) {
       filteredAttendance = filteredAttendance.filter(
-        record => record.employeeId === selectedEmployee
+        record => record.employee_id === selectedEmployee
       );
     }
 
     // Filter by site
     if (filterType === 'site' && selectedSite) {
-      const siteEmployees = employees.filter(emp => emp.siteLocation === selectedSite);
+      const siteEmployees = employees.filter(emp => emp.site_location === selectedSite);
       const siteEmployeeIds = siteEmployees.map(emp => emp.id);
       filteredAttendance = filteredAttendance.filter(
-        record => siteEmployeeIds.includes(record.employeeId)
+        record => siteEmployeeIds.includes(record.employee_id)
       );
     }
 
     // Filter by user role
     if (user.role === 'supervisor') {
-      const supervisorEmployeeIds = userEmployees.map(emp => emp.id);
+      const supervisorEmployeeIds = employees.map(emp => emp.id);
       filteredAttendance = filteredAttendance.filter(
-        record => supervisorEmployeeIds.includes(record.employeeId)
+        record => supervisorEmployeeIds.includes(record.employee_id)
       );
     }
 
@@ -75,24 +107,24 @@ const ReportsAndExports = ({ user }: ReportsAndExportsProps) => {
     const filteredData = getFilteredData();
     
     const reportData = filteredData.map(record => {
-      const employee = employees.find(emp => emp.id === record.employeeId);
+      const employee = employees.find(emp => emp.id === record.employee_id);
       const attendanceTypeInfo = {
         'full': { label: 'Full Day', multiplier: 1 },
         'half': { label: 'Half Day', multiplier: 0.5 },
         '1.5': { label: '1.5 Day', multiplier: 1.5 }
       };
       
-      const typeInfo = attendanceTypeInfo[record.attendanceType];
-      const dailyWage = employee ? employee.dailyWage * typeInfo.multiplier : 0;
+      const typeInfo = attendanceTypeInfo[record.attendance_type];
+      const dailyWage = employee ? employee.daily_wage * typeInfo.multiplier : 0;
 
       return {
         employeeName: employee?.name || 'Unknown',
-        employeeId: employee?.employeeId || 'Unknown',
-        jobCategory: employee?.jobCategory || 'Unknown',
-        siteLocation: employee?.siteLocation || 'Unknown',
+        employeeId: employee?.employee_id || 'Unknown',
+        jobCategory: employee?.job_category || 'Unknown',
+        siteLocation: employee?.site_location || 'Unknown',
         date: record.date,
         attendanceType: typeInfo.label,
-        dailyWage: employee?.dailyWage || 0,
+        dailyWage: employee?.daily_wage || 0,
         calculatedWage: dailyWage,
       };
     });
@@ -169,6 +201,10 @@ const ReportsAndExports = ({ user }: ReportsAndExportsProps) => {
 
   const stats = getStatistics();
 
+  if (loading) {
+    return <div className="text-center py-8">Loading...</div>;
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -231,9 +267,9 @@ const ReportsAndExports = ({ user }: ReportsAndExportsProps) => {
                     <SelectValue placeholder="Select employee" />
                   </SelectTrigger>
                   <SelectContent>
-                    {userEmployees.map((employee) => (
+                    {employees.map((employee) => (
                       <SelectItem key={employee.id} value={employee.id}>
-                        {employee.name} ({employee.employeeId})
+                        {employee.name} ({employee.employee_id})
                       </SelectItem>
                     ))}
                   </SelectContent>

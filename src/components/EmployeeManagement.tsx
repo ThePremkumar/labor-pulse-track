@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,34 +9,58 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, Building2, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { User } from '@/pages/Index';
-import { useEmployeeStore } from '@/store/employeeStore';
+import { supabase } from '@/integrations/supabase/client';
+import type { UserProfile, Employee } from '@/pages/Index';
 
 interface EmployeeManagementProps {
-  user: User;
+  user: UserProfile;
 }
 
 const EmployeeManagement = ({ user }: EmployeeManagementProps) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
-    employeeId: '',
-    jobCategory: '',
-    dailyWage: '',
-    siteLocation: user.siteLocation || '',
+    employee_id: '',
+    job_category: '',
+    daily_wage: '',
+    site_location: user.site_location || '',
   });
 
-  const { employees, addEmployee, removeEmployee } = useEmployeeStore();
   const { toast } = useToast();
 
-  const userEmployees = user.role === 'admin' 
-    ? employees 
-    : employees.filter(emp => emp.siteLocation === user.siteLocation);
+  useEffect(() => {
+    fetchEmployees();
+  }, [user]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fetchEmployees = async () => {
+    try {
+      let query = supabase.from('employees').select('*');
+      
+      if (user.role === 'supervisor' && user.site_location) {
+        query = query.eq('site_location', user.site_location);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) throw error;
+      setEmployees(data || []);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+      setLoading(false);
+      toast({
+        title: "Error",
+        description: "Failed to fetch employees.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.employeeId || !formData.jobCategory || !formData.dailyWage || !formData.siteLocation) {
+    if (!formData.name || !formData.employee_id || !formData.job_category || !formData.daily_wage || !formData.site_location) {
       toast({
         title: "Error",
         description: "Please fill in all fields.",
@@ -46,7 +70,7 @@ const EmployeeManagement = ({ user }: EmployeeManagementProps) => {
     }
 
     // Check for duplicate employee ID
-    if (employees.some(emp => emp.employeeId === formData.employeeId)) {
+    if (employees.some(emp => emp.employee_id === formData.employee_id)) {
       toast({
         title: "Error",
         description: "Employee ID already exists.",
@@ -55,37 +79,71 @@ const EmployeeManagement = ({ user }: EmployeeManagementProps) => {
       return;
     }
 
-    addEmployee({
-      name: formData.name,
-      employeeId: formData.employeeId,
-      jobCategory: formData.jobCategory,
-      dailyWage: parseFloat(formData.dailyWage),
-      siteLocation: formData.siteLocation,
-      addedBy: user.id,
-    });
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .insert({
+          name: formData.name,
+          employee_id: formData.employee_id,
+          job_category: formData.job_category,
+          daily_wage: parseFloat(formData.daily_wage),
+          site_location: formData.site_location,
+          added_by: user.id,
+        });
 
-    setFormData({
-      name: '',
-      employeeId: '',
-      jobCategory: '',
-      dailyWage: '',
-      siteLocation: user.siteLocation || '',
-    });
-    setIsDialogOpen(false);
+      if (error) throw error;
 
-    toast({
-      title: "Success",
-      description: "Employee added successfully!",
-    });
+      await fetchEmployees();
+      setFormData({
+        name: '',
+        employee_id: '',
+        job_category: '',
+        daily_wage: '',
+        site_location: user.site_location || '',
+      });
+      setIsDialogOpen(false);
+
+      toast({
+        title: "Success",
+        description: "Employee added successfully!",
+      });
+    } catch (error) {
+      console.error('Error adding employee:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add employee. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleRemoveEmployee = (id: string) => {
-    removeEmployee(id);
-    toast({
-      title: "Employee Removed",
-      description: "Employee has been removed from the system.",
-    });
+  const handleRemoveEmployee = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      await fetchEmployees();
+      toast({
+        title: "Employee Removed",
+        description: "Employee has been removed from the system.",
+      });
+    } catch (error) {
+      console.error('Error removing employee:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove employee. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -123,45 +181,45 @@ const EmployeeManagement = ({ user }: EmployeeManagementProps) => {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="employeeId">Employee ID</Label>
+                <Label htmlFor="employee_id">Employee ID</Label>
                 <Input
-                  id="employeeId"
-                  value={formData.employeeId}
-                  onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                  id="employee_id"
+                  value={formData.employee_id}
+                  onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
                   placeholder="Enter unique employee ID"
                   required
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="jobCategory">Job Category</Label>
+                <Label htmlFor="job_category">Job Category</Label>
                 <Input
-                  id="jobCategory"
-                  value={formData.jobCategory}
-                  onChange={(e) => setFormData({ ...formData, jobCategory: e.target.value })}
+                  id="job_category"
+                  value={formData.job_category}
+                  onChange={(e) => setFormData({ ...formData, job_category: e.target.value })}
                   placeholder="e.g., Mason, Laborer, Carpenter"
                   required
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="dailyWage">Daily Wage (₹)</Label>
+                <Label htmlFor="daily_wage">Daily Wage (₹)</Label>
                 <Input
-                  id="dailyWage"
+                  id="daily_wage"
                   type="number"
-                  value={formData.dailyWage}
-                  onChange={(e) => setFormData({ ...formData, dailyWage: e.target.value })}
+                  value={formData.daily_wage}
+                  onChange={(e) => setFormData({ ...formData, daily_wage: e.target.value })}
                   placeholder="Enter daily wage"
                   required
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="siteLocation">Site Location</Label>
+                <Label htmlFor="site_location">Site Location</Label>
                 <Input
-                  id="siteLocation"
-                  value={formData.siteLocation}
-                  onChange={(e) => setFormData({ ...formData, siteLocation: e.target.value })}
+                  id="site_location"
+                  value={formData.site_location}
+                  onChange={(e) => setFormData({ ...formData, site_location: e.target.value })}
                   placeholder="Enter site location"
                   required
                   disabled={user.role === 'supervisor'}
@@ -186,12 +244,12 @@ const EmployeeManagement = ({ user }: EmployeeManagementProps) => {
             Employee List
           </CardTitle>
           <CardDescription>
-            {userEmployees.length} employees 
-            {user.role === 'supervisor' && ` at ${user.siteLocation}`}
+            {employees.length} employees 
+            {user.role === 'supervisor' && ` at ${user.site_location}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {userEmployees.length === 0 ? (
+          {employees.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
               <p>No employees found. Add your first employee to get started.</p>
@@ -210,21 +268,21 @@ const EmployeeManagement = ({ user }: EmployeeManagementProps) => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {userEmployees.map((employee) => (
+                  {employees.map((employee) => (
                     <TableRow key={employee.id}>
                       <TableCell className="font-medium">{employee.name}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{employee.employeeId}</Badge>
+                        <Badge variant="outline">{employee.employee_id}</Badge>
                       </TableCell>
-                      <TableCell>{employee.jobCategory}</TableCell>
+                      <TableCell>{employee.job_category}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <DollarSign className="w-4 h-4" />
-                          ₹{employee.dailyWage}
+                          ₹{employee.daily_wage}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{employee.siteLocation}</Badge>
+                        <Badge variant="secondary">{employee.site_location}</Badge>
                       </TableCell>
                       {user.role === 'admin' && (
                         <TableCell>
