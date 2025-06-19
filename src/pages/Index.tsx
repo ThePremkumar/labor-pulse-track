@@ -57,6 +57,8 @@ const Index = () => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
+        
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -78,6 +80,7 @@ const Index = () => {
             });
           }
         } else {
+          // Clear profile when user logs out
           setUserProfile(null);
         }
         
@@ -87,26 +90,44 @@ const Index = () => {
 
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      if (session) {
+        setSession(session);
+        setUser(session.user);
+      } else {
+        setLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout error:', error);
+        toast({
+          title: "Error",
+          description: "Failed to logout. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        // Clear all state immediately
+        setUser(null);
+        setSession(null);
+        setUserProfile(null);
+        
+        toast({
+          title: "Logged Out",
+          description: "You have been successfully logged out.",
+        });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
       toast({
         title: "Error",
         description: "Failed to logout. Please try again.",
         variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Logged Out",
-        description: "You have been successfully logged out.",
       });
     }
   };
