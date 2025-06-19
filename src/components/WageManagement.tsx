@@ -63,7 +63,14 @@ const WageManagement = ({ user }: WageManagementProps) => {
       .select('*');
     
     if (error) throw error;
-    setAttendanceRecords(data || []);
+    
+    // Type assertion to ensure attendance_type matches our interface
+    const typedData = (data || []).map(record => ({
+      ...record,
+      attendance_type: record.attendance_type as 'full' | 'half' | '1.5'
+    }));
+    
+    setAttendanceRecords(typedData);
   };
 
   const fetchWagePayments = async () => {

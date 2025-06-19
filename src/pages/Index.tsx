@@ -16,7 +16,7 @@ export interface UserProfile {
   site_location?: string;
 }
 
-// Updated interfaces to match database schema
+// Updated interfaces to match database schema with proper typing
 export interface Employee {
   id: string;
   name: string;
@@ -43,6 +43,7 @@ export interface WagePayment {
   advance_amount: number;
   date: string;
   paid_by: string;
+  created_at: string;
 }
 
 const Index = () => {

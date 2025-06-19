@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -61,7 +60,14 @@ const ReportsAndExports = ({ user }: ReportsAndExportsProps) => {
       .select('*');
     
     if (error) throw error;
-    setAttendanceRecords(data || []);
+    
+    // Type assertion to ensure attendance_type matches our interface
+    const typedData = (data || []).map(record => ({
+      ...record,
+      attendance_type: record.attendance_type as 'full' | 'half' | '1.5'
+    }));
+    
+    setAttendanceRecords(typedData);
   };
 
   const sites = Array.from(new Set(employees.map(emp => emp.site_location)));
