@@ -15,7 +15,6 @@ const LoginForm = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<'admin' | 'supervisor'>('supervisor');
-  const [siteLocation, setSiteLocation] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -30,7 +29,7 @@ const LoginForm = () => {
       return;
     }
 
-    if (!isLogin && (!name.trim() || (role === 'supervisor' && !siteLocation.trim()))) {
+    if (!isLogin && !name.trim()) {
       toast({
         title: "Error",
         description: "Please fill in all required fields.",
@@ -69,7 +68,7 @@ const LoginForm = () => {
             data: {
               name,
               role,
-              site_location: role === 'supervisor' ? siteLocation : null,
+              site_location: null,
             }
           }
         });
@@ -172,39 +171,20 @@ const LoginForm = () => {
             </div>
 
             {!isLogin && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="role" className="text-sm font-medium text-gray-700">
-                    Role
-                  </Label>
-                  <Select value={role} onValueChange={(value: 'admin' | 'supervisor') => setRole(value)}>
-                    <SelectTrigger className="h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Administrator</SelectItem>
-                      <SelectItem value="supervisor">Supervisor</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {role === 'supervisor' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="siteLocation" className="text-sm font-medium text-gray-700">
-                      Site Location
-                    </Label>
-                    <Input
-                      id="siteLocation"
-                      type="text"
-                      value={siteLocation}
-                      onChange={(e) => setSiteLocation(e.target.value)}
-                      placeholder="Enter site location"
-                      required
-                      className="h-11"
-                    />
-                  </div>
-                )}
-              </>
+              <div className="space-y-2">
+                <Label htmlFor="role" className="text-sm font-medium text-gray-700">
+                  Role
+                </Label>
+                <Select value={role} onValueChange={(value: 'admin' | 'supervisor') => setRole(value)}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Administrator</SelectItem>
+                    <SelectItem value="supervisor">Supervisor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             )}
             
             <Button 
