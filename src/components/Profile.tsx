@@ -86,7 +86,7 @@ const Profile = ({ user, onUpdateUser }: ProfileProps) => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Profile</h2>
+        <h2 className="text-2xl font-bold text-gray-900 p-[10px]">Profile</h2>
         {!isEditing ? (
           <Button onClick={() => setIsEditing(true)} variant="outline">
             <Edit2 className="w-4 h-4 mr-2" />

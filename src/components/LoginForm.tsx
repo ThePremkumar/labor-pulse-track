@@ -68,7 +68,6 @@ const LoginForm = () => {
             data: {
               name,
               role,
-              site_location: null,
             }
           }
         });

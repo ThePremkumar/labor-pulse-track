@@ -65,7 +65,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Main Content Tabs */}
-        <Card className="bg-white/80 backdrop-blur border-0 shadow-lg">
+        <Card className="bg-white/80 backdrop-blur border-0 shadow-lg p-10px">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-5 bg-gray-100/50">
               <TabsTrigger value="employees" className="flex items-center gap-2">

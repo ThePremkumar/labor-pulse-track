@@ -148,7 +148,7 @@ const EmployeeManagement = ({ user }: EmployeeManagementProps) => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div>
+        <div className='p-[10px]'>
           <h2 className="text-2xl font-bold text-gray-900">Employee Management</h2>
           <p className="text-gray-600">Manage your construction workforce</p>
         </div>
@@ -186,7 +186,7 @@ const EmployeeManagement = ({ user }: EmployeeManagementProps) => {
                   id="employee_id"
                   value={formData.employee_id}
                   onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                  placeholder="Enter unique employee ID"
+                  placeholder="Enter unique employee ID eg: EMID001"
                   required
                 />
               </div>
@@ -210,7 +210,7 @@ const EmployeeManagement = ({ user }: EmployeeManagementProps) => {
                   value={formData.daily_wage}
                   onChange={(e) => setFormData({ ...formData, daily_wage: e.target.value })}
                   placeholder="Enter daily wage"
-                  required
+                  
                 />
               </div>
               
@@ -222,7 +222,7 @@ const EmployeeManagement = ({ user }: EmployeeManagementProps) => {
                   onChange={(e) => setFormData({ ...formData, site_location: e.target.value })}
                   placeholder="Enter site location"
                   required
-                  disabled={user.role === 'supervisor'}
+                  // disabled={user.role === 'supervisor'}
                 />
               </div>
               

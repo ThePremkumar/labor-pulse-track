@@ -213,7 +213,7 @@ const ReportsAndExports = ({ user }: ReportsAndExportsProps) => {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className='p-[10px]'>
         <h2 className="text-2xl font-bold text-gray-900">Reports & Exports</h2>
         <p className="text-gray-600">Generate and export attendance reports</p>
       </div>
